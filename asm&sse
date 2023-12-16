@@ -1,0 +1,123 @@
+#include <iostream>
+#include <immintrin.h> // Для доступа к интринсикам SSE
+#include <omp.h>
+
+float* pAlign16(float* pf) {
+	int32_t ip = reinterpret_cast<int32_t>(pf);
+	return reinterpret_cast<float*>(ip + ((16 - (ip & 0x0F)) & 0x0F));
+}
+
+void TraceMatrix4x4(float* pf)
+{
+	for (int i = 0; i < 4; i++) {
+		for (int j = 0; j < 4; j++) {
+			printf("%f\t", pf[i * 4 + j]);
+		}
+		printf("\n");
+	}
+	printf("\n");
+}
+
+void MulMatrix4x4(float* pf1, float* pf2, float* pfRes) {
+	for (int i = 0; i < 4; ++i) {
+		__m128 rowRes = _mm_setzero_ps();
+
+		for (int j = 0; j < 4; ++j) {
+			__m128 row1 = _mm_set1_ps(pf1[i * 4 + j]);
+
+			__m128 row2 = _mm_load_ps(&pf2[j * 4]);
+			rowRes = _mm_add_ps(rowRes, _mm_mul_ps(row1, row2));
+		}
+
+		_mm_store_ps(&pfRes[i * 4], rowRes);
+	}
+}
+
+void MulMatrixASM_4X4(float* pf1, float* pf2, float* pfRes)
+{
+	_asm
+	{
+		mov eax, pf2
+		mov ebx, pfRes
+		movaps xmm0, [eax]
+		movaps xmm1, [eax + 16]
+		movaps xmm2, [eax + 32]
+		movaps xmm3, [eax + 48]
+
+		// 0, 1, 2, 3
+		movaps xmm4, xmm0
+		shufps xmm0, xmm1, 044h
+		shufps xmm4, xmm1, 0EEh
+
+		// 0, 2, 3, 4
+		movaps xmm5, xmm2
+		shufps xmm2, xmm3, 044h
+		shufps xmm5, xmm3, 0EEh
+
+		// 0, 2, 4, 5
+		movaps xmm1, xmm0
+		shufps xmm0, xmm2, 088h
+		shufps xmm1, xmm2, 0DDh
+
+		// 0, 1, 4, 5
+		movaps xmm2, xmm4
+		shufps xmm2, xmm5, 088h
+		shufps xmm4, xmm5, 0DDh
+
+		// 0 столбец xmm0, 1 столбец xmm1, 2 столбец xmm2, 3 столбец xmm4
+
+		mov eax, pf1
+		mov ecx, 4
+		met_loop:
+		movaps xmm3, [eax]
+
+			// ...
+
+			//movaps [ebx], xmm?
+			add eax, 16
+			add ebx, 16
+			loop met_loop
+
+			//movaps [ebx], xmm0
+			//movaps [ebx + 16], xmm1
+			//movaps [ebx + 32], xmm2
+			//movaps [ebx + 48], xmm4
+
+	}
+}
+
+int main()
+{
+	float* pf = new float[3 * 4 * 4 + 16];
+	float* pf1 = pAlign16(pf);
+	float* pf2 = pf1 + 4 * 4;
+	float* pfRes = pf1 + 2 * (4 * 4);
+	double t, dStart, dEnd;
+
+	for (int i = 0; i < 16; i++)
+	{
+		pf1[i] = pf2[i] = i;
+	}
+
+	TraceMatrix4x4(pf1);
+	TraceMatrix4x4(pf2);
+
+	dStart = omp_get_wtime();
+
+	MulMatrix4x4(pf1, pf2, pfRes);
+
+	dEnd = omp_get_wtime();
+	TraceMatrix4x4(pfRes);
+	printf("ne asm = %lg\n", t = dEnd - dStart);
+
+	dStart = omp_get_wtime();
+
+	MulMatrixASM_4X4(pf1, pf2, pfRes);
+
+	dEnd = omp_get_wtime();
+	printf("asm = %lg\n", t = dEnd - dStart);
+
+
+
+	delete[] pf;
+}
