@@ -1,0 +1,330 @@
+// MulMatrix.cpp : Этот файл содержит функцию "main". Здесь начинается и заканчивается выполнение программы.
+//
+#define _CRT_SECURE_NO_WARNINGS
+#include <iostream>
+#include <omp.h>
+
+void MulMatrixOmp(const uint8_t *a_p1, const uint8_t *a_p2, uint8_t *a_pRes, int64_t a_iSize, int64_t a_iN, int a_iNumThreads)
+{
+	int i, j, k;
+	double d=0;
+
+#pragma omp parallel private(j, k, d) num_threads(a_iNumThreads)
+	{
+		int iThread = omp_get_thread_num();
+
+#pragma omp for lastprivate(i)
+		for (i = 0; i < a_iN; i++)
+		{
+			for (j = 0; j < a_iN; j++)
+			{
+				d = 0;
+				for (k = 0; k < a_iN; k++)
+				{
+					d += reinterpret_cast<const double *>(a_p1 + i * a_iSize)[k] * reinterpret_cast<const double *>(a_p2 + k * a_iSize)[j];
+				}
+				reinterpret_cast<double *>(a_pRes + i * a_iSize)[j] = d;
+			}
+		}
+	}
+}
+
+void MulMatrixTransp2(const uint8_t *a_p1, const uint8_t *a_p2, uint8_t *a_pRes, int64_t a_iSize, int64_t a_iN)
+{
+	int i, j, k;
+	double d;
+	for (i = 0; i < a_iN; i++)
+	{
+		for (j = 0; j < a_iN; j++)
+		{
+			d = 0;
+			for (k = 0; k < a_iN; k++)
+			{
+				d += reinterpret_cast<const double *>(a_p1 + i * a_iSize + k)[0] * reinterpret_cast<const double *>(a_p2 + j * a_iSize + k)[0];
+			}
+			reinterpret_cast<double *>(a_pRes + i * a_iSize + j)[0] = d;
+		}
+	}
+}
+
+
+void MulMatrixIJK(const uint8_t *a_p1, const uint8_t *a_p2, uint8_t *a_pRes, int64_t a_iSize, int64_t a_iN)
+{
+	int i, j, k;
+	memset(a_pRes, 0, a_iSize*a_iN);
+	for (i = 0; i < a_iN; i++)
+	{
+		for (j = 0; j < a_iN; j++)
+		{
+			for (k = 0; k < a_iN; k++)
+			{
+				reinterpret_cast<double *>(a_pRes + i * a_iSize)[j] += reinterpret_cast<const double *>(a_p1 + i * a_iSize)[k] * reinterpret_cast<const double *>(a_p2 + k * a_iSize)[j];
+			}
+		}
+	}
+}
+
+void MulMatrixIKJ(const uint8_t *a_p1, const uint8_t *a_p2, uint8_t *a_pRes, int64_t a_iSize, int64_t a_iN)
+{
+	int i, j, k;
+	memset(a_pRes, 0, a_iSize*a_iN);
+	for (i = 0; i < a_iN; i++)
+	{
+		for (k = 0; k < a_iN; k++)
+		{
+			for (j = 0; j < a_iN; j++)
+			{
+				reinterpret_cast<double *>(a_pRes + i * a_iSize)[j] += reinterpret_cast<const double *>(a_p1 + i * a_iSize)[k] * reinterpret_cast<const double *>(a_p2 + k * a_iSize)[j];
+			}
+		}
+	}
+}
+
+void MulMatrixIKJ_opt(const uint8_t *a_p1, const uint8_t *a_p2, uint8_t *a_pRes, int64_t a_iSize, int64_t a_iN)
+{
+	int i, j, k;
+	memset(a_pRes, 0, a_iSize*a_iN);
+	for (i = 0; i < a_iN; i++)
+	{
+		double *pdRes = reinterpret_cast<double *>(a_pRes + i * a_iSize);
+		const double *pd1 = reinterpret_cast<const double *>(a_p1 + i * a_iSize);
+		for (k = 0; k < a_iN; k++)
+		{
+			double d = pd1[k];
+			const double *pd2 = reinterpret_cast<const double *>(a_p2 + k * a_iSize);
+			for (j = 0; j < a_iN; j++)
+			{
+				pdRes[j] += d * pd2[j];
+			}
+		}
+	}
+}
+
+void MulMatrixJIK(const uint8_t *a_p1, const uint8_t *a_p2, uint8_t *a_pRes, int64_t a_iSize, int64_t a_iN)
+{
+	int i, j, k;
+	memset(a_pRes, 0, a_iSize*a_iN);
+	for (j = 0; j < a_iN; j++)
+	{
+		for (i = 0; i < a_iN; i++)
+		{
+			for (k = 0; k < a_iN; k++)
+			{
+				reinterpret_cast<double *>(a_pRes + i * a_iSize)[j] += reinterpret_cast<const double *>(a_p1 + i * a_iSize)[k] * reinterpret_cast<const double *>(a_p2 + k * a_iSize)[j];
+			}
+		}
+	}
+}
+
+void MulMatrixJKI(const uint8_t *a_p1, const uint8_t *a_p2, uint8_t *a_pRes, int64_t a_iSize, int64_t a_iN)
+{
+	int i, j, k;
+	memset(a_pRes, 0, a_iSize*a_iN);
+	for (j = 0; j < a_iN; j++)
+	{
+		for (k = 0; k < a_iN; k++)
+		{
+			for (i = 0; i < a_iN; i++)
+			{
+				reinterpret_cast<double *>(a_pRes + i * a_iSize)[j] += reinterpret_cast<const double *>(a_p1 + i * a_iSize)[k] * reinterpret_cast<const double *>(a_p2 + k * a_iSize)[j];
+			}
+		}
+	}
+}
+
+void MulMatrixKIJ(const uint8_t *a_p1, const uint8_t *a_p2, uint8_t *a_pRes, int64_t a_iSize, int64_t a_iN)
+{
+	int i, j, k;
+	memset(a_pRes, 0, a_iSize*a_iN);
+	for (k = 0; k < a_iN; k++)
+	{
+		for (i = 0; i < a_iN; i++)
+		{
+			for (j = 0; j < a_iN; j++)
+			{
+				reinterpret_cast<double *>(a_pRes + i * a_iSize)[j] += reinterpret_cast<const double *>(a_p1 + i * a_iSize)[k] * reinterpret_cast<const double *>(a_p2 + k * a_iSize)[j];
+			}
+		}
+	}
+}
+
+void MulMatrixKIJ_opt(const uint8_t *a_p1, const uint8_t *a_p2, uint8_t *a_pRes, int64_t a_iSize, int64_t a_iN)
+{
+	int i, j, k;
+	memset(a_pRes, 0, a_iSize*a_iN);
+	for (k = 0; k < a_iN; k++)
+	{
+		const double *pd2 = reinterpret_cast<const double *>(a_p2 + k * a_iSize);
+		for (i = 0; i < a_iN; i++)
+		{
+			double *pdRes = reinterpret_cast<double *>(a_pRes + i * a_iSize);
+			double d = reinterpret_cast<const double *>(a_p1 + i * a_iSize)[k];
+			for (j = 0; j < a_iN; j++)
+			{
+				pdRes[j] += d * pd2[j];
+			}
+		}
+	}
+}
+
+void MulMatrixKJI(const uint8_t *a_p1, const uint8_t *a_p2, uint8_t *a_pRes, int64_t a_iSize, int64_t a_iN)
+{
+	int i, j, k;
+	memset(a_pRes, 0, a_iSize*a_iN);
+	for (k = 0; k < a_iN; k++)
+	{
+		for (j = 0; j < a_iN; j++)
+		{
+			for (i = 0; i < a_iN; i++)
+			{
+				reinterpret_cast<double *>(a_pRes + i * a_iSize)[j] += reinterpret_cast<const double *>(a_p1 + i * a_iSize)[k] * reinterpret_cast<const double *>(a_p2 + k * a_iSize)[j];
+			}
+		}
+	}
+}
+
+void MulMatrixBlock(const uint8_t* a_p1, const uint8_t* a_p2, uint8_t* a_pRes, int64_t a_iSize, int64_t a_iN, int64_t block_size) {
+	memset(a_pRes, 0, a_iSize * a_iN);
+
+#pragma omp parallel 
+	for (int64_t bi = 0; bi < a_iN; bi += block_size) {
+		for (int64_t bj = 0; bj < a_iN; bj += block_size) {
+			for (int64_t bk = 0; bk < a_iN; bk += block_size) {
+				for (int64_t i = bi; i < bi + block_size; ++i) {
+					for (int64_t j = bj; j < bj + block_size; ++j) {
+						for (int64_t k = bk; k < bk + block_size; ++k) {
+							reinterpret_cast<double*>(a_pRes + i * a_iSize + j)[0] +=
+								reinterpret_cast<const double*>(a_p1 + i * a_iSize + k)[0] *
+								reinterpret_cast<const double*>(a_p2 + k * a_iSize + j)[0];
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+int main()
+{
+	int64_t iN = 1024;
+	int64_t iN2 = iN * iN;
+	double *pdAll = new double[4 * iN2];
+	double *pd1 = pdAll;
+	double *pd2 = pd1 + iN2;
+	double *pdRes = pd2 + iN2;
+	double *pdRes2 = pdRes + iN2;
+
+	double dStart, dEnd, t;
+
+	for (int64_t i = 0; i < 3 * iN2; i++)
+	{
+		pdAll[i] = 1.;
+	}
+
+	FILE *pf = fopen("stat.txt", "at");
+
+//	if (nullptr != pf)
+//		fprintf(pf, "Omp\tTr\tIJK\tIKJ\tIKJ_opt\tJIK\tJKI\tKIJ\tKIJ_opt\tKJI\n");
+
+	dStart = omp_get_wtime();
+	MulMatrixOmp(reinterpret_cast<const uint8_t *>(pd1), reinterpret_cast<const uint8_t *>(pd2), reinterpret_cast<uint8_t *>(pdRes2), iN * sizeof(double), iN, 8);
+	dEnd = omp_get_wtime();
+	printf("time = %lg\n", t = dEnd - dStart);
+	if (nullptr != pf)
+		fprintf(pf, "%lg\t", t);
+
+	dStart = omp_get_wtime();
+	MulMatrixTransp2(reinterpret_cast<const uint8_t *>(pd1), reinterpret_cast<const uint8_t *>(pd2), reinterpret_cast<uint8_t *>(pdRes), iN * sizeof(double), iN);
+	dEnd = omp_get_wtime();
+	printf("MulMatrixTransp2 = %lg\n", t = dEnd - dStart);
+	printf("EQ=%d\n", memcmp(pdRes2, pdRes, sizeof(double)*iN2));
+	if (nullptr != pf)
+		fprintf(pf, "%lg\t", t);
+
+
+	dStart = omp_get_wtime();
+	MulMatrixIJK(reinterpret_cast<const uint8_t *>(pd1), reinterpret_cast<const uint8_t *>(pd2), reinterpret_cast<uint8_t *>(pdRes), iN * sizeof(double), iN);
+	dEnd = omp_get_wtime();
+	printf("MulMatrixIJK = %lg\n", t = dEnd - dStart);
+	printf("EQ=%d\n", memcmp(pdRes2, pdRes, sizeof(double)*iN2));
+	if (nullptr != pf)
+		fprintf(pf, "%lg\t", t);
+
+	dStart = omp_get_wtime();
+	MulMatrixIKJ(reinterpret_cast<const uint8_t *>(pd1), reinterpret_cast<const uint8_t *>(pd2), reinterpret_cast<uint8_t *>(pdRes), iN * sizeof(double), iN);
+	dEnd = omp_get_wtime();
+	printf("MulMatrixIKJ = %lg\n", t = dEnd - dStart);
+	printf("EQ=%d\n", memcmp(pdRes2, pdRes, sizeof(double)*iN2));
+	if (nullptr != pf)
+		fprintf(pf, "%lg\t", t);
+
+	dStart = omp_get_wtime();
+	MulMatrixIKJ_opt(reinterpret_cast<const uint8_t *>(pd1), reinterpret_cast<const uint8_t *>(pd2), reinterpret_cast<uint8_t *>(pdRes), iN * sizeof(double), iN);
+	dEnd = omp_get_wtime();
+	printf("MulMatrixIKJ_opt = %lg\n", t = dEnd - dStart);
+	printf("EQ=%d\n", memcmp(pdRes2, pdRes, sizeof(double)*iN2));
+	if (nullptr != pf)
+		fprintf(pf, "%lg\t", t);
+
+	dStart = omp_get_wtime();
+	MulMatrixJIK(reinterpret_cast<const uint8_t *>(pd1), reinterpret_cast<const uint8_t *>(pd2), reinterpret_cast<uint8_t *>(pdRes), iN * sizeof(double), iN);
+	dEnd = omp_get_wtime();
+	printf("MulMatrixJIK = %lg\n", t = dEnd - dStart);
+	printf("EQ=%d\n", memcmp(pdRes2, pdRes, sizeof(double)*iN2));
+	if (nullptr != pf)
+		fprintf(pf, "%lg\t", t);
+
+	dStart = omp_get_wtime();
+	MulMatrixJKI(reinterpret_cast<const uint8_t *>(pd1), reinterpret_cast<const uint8_t *>(pd2), reinterpret_cast<uint8_t *>(pdRes), iN * sizeof(double), iN);
+	dEnd = omp_get_wtime();
+	printf("MulMatrixJKI = %lg\n", t = dEnd - dStart);
+	printf("EQ=%d\n", memcmp(pdRes2, pdRes, sizeof(double)*iN2));
+	if (nullptr != pf)
+		fprintf(pf, "%lg\t", t);
+
+	dStart = omp_get_wtime();
+	MulMatrixKIJ(reinterpret_cast<const uint8_t *>(pd1), reinterpret_cast<const uint8_t *>(pd2), reinterpret_cast<uint8_t *>(pdRes), iN * sizeof(double), iN);
+	dEnd = omp_get_wtime();
+	printf("MulMatrixKIJ = %lg\n", t = dEnd - dStart);
+	printf("EQ=%d\n", memcmp(pdRes2, pdRes, sizeof(double)*iN2));
+	if (nullptr != pf)
+		fprintf(pf, "%lg\t", t);
+
+	dStart = omp_get_wtime();
+	MulMatrixKIJ_opt(reinterpret_cast<const uint8_t *>(pd1), reinterpret_cast<const uint8_t *>(pd2), reinterpret_cast<uint8_t *>(pdRes), iN * sizeof(double), iN);
+	dEnd = omp_get_wtime();
+	printf("MulMatrixKIJ_opt = %lg\n", t = dEnd - dStart);
+	printf("EQ=%d\n", memcmp(pdRes2, pdRes, sizeof(double)*iN2));
+	if (nullptr != pf)
+		fprintf(pf, "%lg\t", t);
+
+	dStart = omp_get_wtime();
+	MulMatrixKJI(reinterpret_cast<const uint8_t *>(pd1), reinterpret_cast<const uint8_t *>(pd2), reinterpret_cast<uint8_t *>(pdRes), iN * sizeof(double), iN);
+	dEnd = omp_get_wtime();
+	printf("MulMatrixKJI = %lg\n", t = dEnd - dStart);
+	printf("EQ=%d\n", memcmp(pdRes2, pdRes, sizeof(double)*iN2));
+	if (nullptr != pf)
+		fprintf(pf, "%lg\n", t);
+
+	if (nullptr != pf)
+		fclose(pf);
+
+	dStart = omp_get_wtime();
+	MulMatrixBlock(reinterpret_cast<const uint8_t*>(pd1), reinterpret_cast<const uint8_t*>(pd2),
+		reinterpret_cast<uint8_t*>(pdRes), iN * sizeof(double), iN, 64); // 64 - размер блока
+	dEnd = omp_get_wtime();
+
+	printf("Block Multiplication Time: %lg\n", dEnd - dStart);
+	printf("EQ=%d\n", memcmp(pdRes2, pdRes, sizeof(double) * iN2));
+	if (nullptr != pf)
+		fprintf(pf, "%lg\n", t);
+
+	if (nullptr != pf)
+		fclose(pf);
+
+	// Очистка выделенной памяти
+	delete[] pdAll;
+
+	return 0;
+}
+
